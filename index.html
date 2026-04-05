@@ -1,286 +1,138 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Robot Line Follower — E-Ra Realtime</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg0: #0d0f14; --bg1: #161920; --bg2: #1e222b; --bg3: #252a36; --line: #2a2f3e;
-    --text0: #e8ecf4; --text1: #a0a8bc; --text2: #5a6278;
-    --green: #1dbb78; --green-dim: #0e5c3b;
-    --red: #e84c4c; --red-dim: #5c1e1e;
-    --blue: #4a8cff; --blue-dim: #1a2f5c;
-    --amber: #f0a030; --amber-dim: #5c3a10;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    --r: 8px; --r-lg: 12px;
-  }
-  body { font-family: var(--font-ui); background: var(--bg0); color: var(--text0); min-height: 100vh; padding: 20px; }
-  .page { max-width: 1100px; margin: 0 auto; }
-  .topbar { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: var(--bg1); border: 1px solid var(--line); border-radius: var(--r-lg); margin-bottom: 16px; }
-  .topbar-title { font-size: 15px; font-weight: 600; letter-spacing: .02em; }
-  .topbar-sub   { font-size: 12px; color: var(--text2); font-family: var(--font-mono); margin-left: auto; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text2); transition: background .4s; flex-shrink: 0; }
-  .dot.online  { background: var(--green); box-shadow: 0 0 8px var(--green-dim); }
-  .dot.offline { background: var(--red); }
-  .dot.pulse   { animation: pulse 1.4s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
-  .btn { padding: 8px 18px; border: 1px solid var(--line); border-radius: var(--r); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; background: var(--bg2); color: var(--text0); font-family: var(--font-ui); }
-  .btn:hover { background: var(--bg3); border-color: var(--text2); }
-  .btn.success { background: var(--green-dim); border-color: var(--green); color: var(--green); }
-  .btn.success:hover { background: var(--green); color: #000; }
-  .btn.danger  { background: var(--red-dim);  border-color: var(--red);  color: var(--red);  }
-  .btn.danger:hover  { background: var(--red);  color: #fff; }
-  .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr;      gap: 12px; margin-bottom: 16px; }
-  .card { background: var(--bg1); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; }
-  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text2); margin-bottom: 12px; }
-  .metric { text-align: center; }
-  .metric .val { font-size: 32px; font-weight: 700; font-family: var(--font-mono); line-height: 1.1; transition: color .3s; }
-  .metric .unit { font-size: 11px; color: var(--text2); margin-top: 2px; }
-  .metric .val.green  { color: var(--green); }
-  .metric .val.blue   { color: var(--blue);  }
-  .metric .val.amber  { color: var(--amber); }
-  .metric .val.red    { color: var(--red);   }
-  .sensor-row { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 4px; }
-  .s-dot { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 16px; font-weight: 700; border: 1px solid var(--line); background: var(--bg2); color: var(--text2); transition: all .25s; }
-  .s-dot.on { background: var(--green-dim); border-color: var(--green); color: var(--green); box-shadow: 0 0 10px rgba(29,187,120,.25); }
-  .sensor-code { font-family: var(--font-mono); font-size: 13px; color: var(--text1); margin-top: 10px; text-align: center; }
-  .motor-wrap { display: flex; gap: 16px; align-items: flex-end; height: 80px; }
-  .motor-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .motor-track { width: 100%; background: var(--bg2); border-radius: 4px; height: 64px; position: relative; overflow: hidden; border: 1px solid var(--line); }
-  .motor-fill { position: absolute; bottom: 0; left: 0; width: 100%; background: var(--green); transition: height .3s ease, background .3s; border-radius: 3px 3px 0 0; }
-  .motor-fill.rev { background: var(--red); }
-  .motor-lbl { font-size: 10px; color: var(--text2); font-family: var(--font-mono); }
-  .motor-val { font-size: 11px; font-family: var(--font-mono); color: var(--text1); }
-  .err-track { position: relative; height: 14px; background: var(--bg2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin: 8px 0; }
-  .err-center { position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: var(--line); }
-  .err-fill { position: absolute; top: 0; height: 100%; background: var(--blue); transition: left .3s, width .3s; border-radius: 6px; }
-  .pid-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-  .pid-row:last-child { border-bottom: none; }
-  .pid-row label  { font-size: 12px; color: var(--text1); width: 28px; flex-shrink: 0; }
-  .pid-row input[type=range] { flex: 1; accent-color: var(--blue); height: 4px; }
-  .pid-val { font-family: var(--font-mono); font-size: 12px; color: var(--text0); width: 38px; text-align: right; flex-shrink: 0; }
-  .chart-wrap { position: relative; width: 100%; height: 180px; }
-  .log-box { background: var(--bg0); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; height: 110px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text2); margin-top: 8px; }
-  .log-box p { margin-bottom: 2px; }
-  .log-box .ok   { color: var(--green); }
-  .log-box .warn { color: var(--amber); }
-  .log-box .err  { color: var(--red);   }
-  .legend { display: flex; gap: 16px; margin-bottom: 8px; }
-  .legend span { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
-  .legend i { display: inline-block; width: 22px; height: 2px; border-radius: 1px; }
-  @media (max-width: 700px) { .grid4, .grid2 { grid-template-columns: 1fr; } }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo dõi Nhiệt độ & Độ ẩm</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f4f7f6; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+        }
+
+        .dashboard {
+            display: flex;
+            gap: 20px;
+        }
+
+        .card {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 200px;
+        }
+
+        .card-temp { border-top: 5px solid #ff4757; }
+        .card-hum { border-top: 5px solid #1e90ff; }
+
+        .title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .value {
+            font-size: 40px;
+            font-weight: bold;
+        }
+
+        .val-temp { color: #ff4757; }
+        .val-hum { color: #1e90ff; }
+
+        .unit {
+            font-size: 20px;
+            color: #666;
+        }
+
+        /* Responsive cho điện thoại */
+        @media (max-width: 500px) {
+            .dashboard { flex-direction: column; }
+            .card { width: 100%; }
+        }
+    </style>
 </head>
 <body>
-<div class="page">
-  <div class="topbar">
-    <div class="dot pulse" id="dot"></div>
-    <span class="topbar-title">🤖 Robot Line Follower — E-Ra Realtime</span>
-    <span class="topbar-sub" id="tsLast">Chờ đồng bộ...</span>
-  </div>
 
-  <div class="grid4">
-    <div class="card metric"><div class="card-title">Distance</div><div class="val green" id="mDist">–</div><div class="unit">cm</div></div>
-    <div class="card metric"><div class="card-title">Speed</div><div class="val blue" id="mSpeed">–</div><div class="unit">%</div></div>
-    <div class="card metric"><div class="card-title">PID Error</div><div class="val amber" id="mError">–</div><div class="unit">offset</div></div>
-    <div class="card metric"><div class="card-title">WiFi RSSI</div><div class="val" id="mRssi">–</div><div class="unit">dBm</div></div>
-  </div>
+    <div class="dashboard">
+        <!-- Thẻ Nhiệt độ -->
+        <div class="card card-temp">
+            <div class="title">Nhiệt độ</div>
+            <div class="value val-temp">
+                <span id="tempValue">--</span><span class="unit">°C</span>
+            </div>
+        </div>
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-title">Cảm biến vạch (S1 → S5)</div>
-      <div class="sensor-row">
-        <div class="s-dot" id="s0">0</div><div class="s-dot" id="s1">0</div>
-        <div class="s-dot" id="s2">0</div><div class="s-dot" id="s3">0</div><div class="s-dot" id="s4">0</div>
-      </div>
-      <div class="sensor-code">Mã: <span id="sCode">0x00</span>  |  Binary: <span id="sBin">00000</span></div>
-      <div style="margin-top:14px;">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">PID Error offset</div>
-        <div class="err-track"><div class="err-center"></div><div class="err-fill" id="errFill" style="left:50%;width:0;"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);font-family:var(--font-mono);"><span>-25</span><span>0</span><span>+25</span></div>
-      </div>
+        <!-- Thẻ Độ ẩm -->
+        <div class="card card-hum">
+            <div class="title">Độ ẩm</div>
+            <div class="value val-hum">
+                <span id="humValue">--</span><span class="unit">%</span>
+            </div>
+        </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Motor output</div>
-      <div class="motor-wrap">
-        <div class="motor-col"><div class="motor-lbl">LEFT</div><div class="motor-track"><div class="motor-fill" id="barL" style="height:40%"></div></div><div class="motor-val" id="pwmL">–</div></div>
-        <div class="motor-col"><div class="motor-lbl">RIGHT</div><div class="motor-track"><div class="motor-fill" id="barR" style="height:40%"></div></div><div class="motor-val" id="pwmR">–</div></div>
-      </div>
-    </div>
-  </div>
+    <script>
+        // Hàm cập nhật dữ liệu hiển thị
+        function updateSensorData(temp, hum) {
+            if (temp !== null) document.getElementById('tempValue').innerText = parseFloat(temp).toFixed(1);
+            if (hum !== null) document.getElementById('humValue').innerText = parseFloat(hum).toFixed(1);
+        }
 
-  <div class="grid2">
-    <div class="card">
-      <div class="card-title">Biểu đồ realtime</div>
-      <div class="legend">
-        <span><i style="background:#1dbb78;"></i>Distance</span>
-        <span><i style="background:#4a8cff;"></i>Motor L</span>
-        <span><i style="background:#e84c4c;"></i>Motor R</span>
-      </div>
-      <div class="chart-wrap"><canvas id="chart"></canvas></div>
-    </div>
+        // ==================== LÕI GIAO TIẾP E-RA IFRAME ====================
+        let eraConfig = null;
 
-    <div class="card">
-      <div class="card-title">Bảng điều khiển</div>
-      <div style="font-size:10px;color:var(--text2);margin-bottom:8px;font-family:var(--font-mono);">
-        Live (ESP32): &nbsp; Kp=<span id="liveKp">–</span> &nbsp; Ki=<span id="liveKi">–</span> &nbsp; Kd=<span id="liveKd">–</span>
-      </div>
-      <div class="pid-row"><label>Kp</label><input type="range" id="rKp" min="0" max="20" step="0.1" value="4.3" oninput="document.getElementById('dKp').textContent=parseFloat(this.value).toFixed(1)"><span class="pid-val" id="dKp">4.3</span></div>
-      <div class="pid-row"><label>Ki</label><input type="range" id="rKi" min="0" max="10" step="0.1" value="0" oninput="document.getElementById('dKi').textContent=parseFloat(this.value).toFixed(1)"><span class="pid-val" id="dKi">0.0</span></div>
-      <div class="pid-row"><label>Kd</label><input type="range" id="rKd" min="0" max="20" step="0.1" value="3.5" oninput="document.getElementById('dKd').textContent=parseFloat(this.value).toFixed(1)"><span class="pid-val" id="dKd">3.5</span></div>
-      <div class="pid-row"><label>Spd</label><input type="range" id="rSpd" min="20" max="100" step="5" value="60" oninput="document.getElementById('dSpd').textContent=this.value+'%'"><span class="pid-val" id="dSpd">60%</span></div>
-      
-      <div style="display:flex; gap:10px; margin-top:14px;">
-        <button class="btn success" style="flex:1;" onclick="sendPID()">Gửi PID</button>
-        <button class="btn danger" id="btnStop" style="flex:1;" onclick="sendStop()">⬛ STOP</button>
-      </div>
+        window.addEventListener('message', (e) => {
+            if (!e.data || typeof e.data !== 'object') return;
+            if (e.data.source && typeof e.data.source === 'string' && e.data.source.includes('react')) return;
 
-      <div class="card-title" style="margin-top:14px;">Log Trạng Thái (Bắt lỗi)</div>
-      <div class="log-box" id="logBox"></div>
-    </div>
-  </div>
-</div>
+            const msgType = e.data.type || e.data.action || 'Unknown';
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
-const MAX_PTS = 60, tLabels = [], distArr = [], mlArr = [], mrArr = [];
-const chart = new Chart(document.getElementById('chart').getContext('2d'), {
-  type: 'line',
-  data: { labels: tLabels, datasets: [
-      { label: 'Distance', data: distArr, borderColor: '#1dbb78', tension: 0.35, pointRadius: 0, borderWidth: 1.5, yAxisID: 'y' },
-      { label: 'Motor L',  data: mlArr,  borderColor: '#4a8cff', tension: 0.35, pointRadius: 0, borderWidth: 1.2, yAxisID: 'y2' },
-      { label: 'Motor R',  data: mrArr,  borderColor: '#e84c4c', tension: 0.35, pointRadius: 0, borderWidth: 1.2, yAxisID: 'y2' }
-  ]},
-  options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { position: 'left', ticks: { color: '#1dbb78', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.05)' } }, y2: { position: 'right', min: -60, max: 270, ticks: { color: '#4a8cff', font: { size: 10 } }, grid: { display: false } } } }
-});
+            // Nhận cấu hình từ E-Ra
+            if (msgType === 'configuration' || e.data.configuration) {
+                eraConfig = e.data.data || e.data.configuration || e.data;
+            } 
+            // Nhận dữ liệu Realtime từ E-Ra
+            else if (msgType === 'values' || e.data.values) {
+                const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
+                                 (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
+                if (!rConfigs) return;
 
-function pushChart(d, ml, mr) {
-  tLabels.push(new Date().toLocaleTimeString('vi', { hour12:false })); distArr.push(d); mlArr.push(ml); mrArr.push(mr);
-  if (tLabels.length > MAX_PTS) { tLabels.shift(); distArr.shift(); mlArr.shift(); mrArr.shift(); }
-  chart.update('none');
-}
+                const values = e.data.data || e.data.values || e.data;
+                let t = null, h = null;
 
-function render(d) {
-  setText('mDist', d.dist !== null ? d.dist : '–'); setText('mSpeed', d.speed !== null ? d.speed : '–'); setText('mError', d.err !== null ? d.err : '–');
-  const rssiEl = document.getElementById('mRssi'); rssiEl.textContent = d.rssi !== null ? d.rssi : '–';
-  if(d.rssi !== null) rssiEl.className = 'val ' + (d.rssi > -60 ? 'green' : d.rssi > -75 ? 'amber' : 'red');
+                // Ánh xạ dữ liệu dựa trên vị trí thiết lập trên E-Ra (0: Nhiệt độ, 1: Độ ẩm)
+                rConfigs.forEach((cfg, index) => {
+                    const valObj = values[cfg.id];
+                    if (valObj !== undefined) {
+                        const val = (typeof valObj === 'object' && valObj !== null) ? valObj.value : valObj;
+                        if (index === 0) t = val;
+                        if (index === 1) h = val;
+                    }
+                });
 
-  const sCode = d.sCode !== null ? d.sCode : 0; const bits = sCode.toString(2).padStart(5, '0');
-  for (let i = 0; i < 5; i++) { const el = document.getElementById('s'+i); el.textContent = bits[i]; el.className = 's-dot' + (bits[i] === '1' ? ' on' : ''); }
-  setText('sCode', '0x' + sCode.toString(16).toUpperCase().padStart(2, '0')); setText('sBin', bits);
+                updateSensorData(t, h);
+            }
+        });
 
-  const err = d.err !== null ? d.err : 0; const pct = Math.min(Math.max((err + 25) / 50, 0), 1);
-  const fill = document.getElementById('errFill');
-  if (err >= 0) { fill.style.left = '50%'; fill.style.width = (pct - .5) * 100 + '%'; } else { fill.style.left = pct * 100 + '%'; fill.style.width = (.5 - pct) * 100 + '%'; }
+        // Báo tín hiệu Ready liên tục cho đến khi E-Ra phản hồi
+        let readyTimer = setInterval(() => {
+            if (!eraConfig) {
+                window.parent.postMessage({ type: 'ready' }, '*');
+                window.parent.postMessage({ action: 'ready' }, '*');
+            } else {
+                clearInterval(readyTimer);
+            }
+        }, 2000);
+    </script>
 
-  setMotor('barL', 'pwmL', d.motorL || 0); setMotor('barR', 'pwmR', d.motorR || 0);
-  setText('liveKp', d.kp !== null ? parseFloat(d.kp).toFixed(1) : '–'); setText('liveKi', d.ki !== null ? parseFloat(d.ki).toFixed(1) : '–'); setText('liveKd', d.kd !== null ? parseFloat(d.kd).toFixed(1) : '–');
-  document.getElementById('tsLast').textContent = 'Live: ' + new Date().toLocaleTimeString('vi');
-  pushChart(d.dist || 0, d.motorL || 0, d.motorR || 0);
-}
-
-function setMotor(barId, valId, v) {
-  const pct = Math.abs(v) / 255 * 100; const bar = document.getElementById(barId);
-  bar.style.height = Math.max(2, pct) + '%'; bar.className = 'motor-fill' + (v < 0 ? ' rev' : ''); setText(valId, v + ' pwm');
-}
-function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
-function log(type, msg) {
-  const box = document.getElementById('logBox'); const p = document.createElement('p'); p.className = type; p.textContent = `[${new Date().toLocaleTimeString('vi', { hour12: false })}] ${msg}`;
-  box.insertBefore(p, box.firstChild); while (box.children.length > 25) box.removeChild(box.lastChild);
-}
-
-// ==================== RADAR QUÉT LIÊN TỤC VÀ BẮT LỖI E-RA ====================
-let eraConfig = null;
-let currentData = { dist:null, sCode:null, motorL:null, motorR:null, err:null, kp:null, ki:null, kd:null, speed:null, rssi:null };
-
-window.addEventListener('message', (e) => {
-  if (!e.data || typeof e.data !== 'object') return;
-  // Lọc bớt các log rác của trình duyệt
-  if (e.data.source && typeof e.data.source === 'string' && e.data.source.includes('react')) return;
-
-  const msgType = e.data.type || e.data.action || 'KhongRo';
-  
-  // IN RA BẤT CỨ TIN NHẮN NÀO NHẬN ĐƯỢC
-  if (msgType !== 'values' && msgType !== 'KhongRo') {
-    log('ok', 'E-Ra phản hồi: ' + msgType);
-  }
-
-  // Nếu là cấu hình
-  if (msgType === 'configuration' || e.data.configuration) {
-    eraConfig = e.data.data || e.data.configuration || e.data;
-    document.getElementById('dot').className = 'dot online pulse';
-    log('success', 'Đã lấy được mảng cấu hình!');
-  } 
-  // Nếu là dữ liệu chạy
-  else if (msgType === 'values' || e.data.values) {
-    const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
-                     (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
-    if (!rConfigs) return;
-
-    const values = e.data.data || e.data.values || e.data;
-    rConfigs.forEach((cfg, index) => {
-      const valObj = values[cfg.id];
-      if (valObj !== undefined) {
-        const val = (typeof valObj === 'object' && valObj !== null) ? valObj.value : valObj;
-        if (index === 0) currentData.dist = val;
-        if (index === 1) currentData.sCode = val;
-        if (index === 2) currentData.motorL = val;
-        if (index === 3) currentData.motorR = val;
-        if (index === 4) currentData.err = val;
-        if (index === 5) currentData.kp = val;
-        if (index === 6) currentData.ki = val;
-        if (index === 7) currentData.kd = val;
-        if (index === 8) currentData.speed = val;
-        if (index === 9) currentData.rssi = val;
-      }
-    });
-    render(currentData);
-  }
-});
-
-// GỬI LỆNH ĐIỀU KHIỂN
-function sendAction(index, val) {
-  const acts = (eraConfig && eraConfig.actions) ? eraConfig.actions : null;
-  if (acts && acts[index]) {
-    window.parent.postMessage({ type: 'trigger_action', data: { action: acts[index].id, value: val } }, '*');
-  } else {
-    log('err', 'Lỗi gửi lệnh: Mảng Action chưa được nạp.');
-  }
-}
-function sendPID() {
-  sendAction(0, parseFloat(document.getElementById('rKp').value));
-  sendAction(1, parseFloat(document.getElementById('rKi').value));
-  sendAction(2, parseFloat(document.getElementById('rKd').value));
-  sendAction(3, parseFloat(document.getElementById('rSpd').value));
-  log('warn', 'Đang nạp Kp, Ki, Kd, Spd xuống ESP32...');
-}
-function sendStop() {
-  const btn = document.getElementById('btnStop');
-  const isStop = btn.textContent.includes('STOP');
-  btn.textContent = isStop ? '▶ RESUME' : '⬛ STOP';
-  btn.className = 'btn ' + (isStop ? 'success' : 'danger');
-  sendAction(4, isStop ? 1 : 0);
-  log('warn', isStop ? 'Gửi lệnh DỪNG XE' : 'Gửi lệnh CHẠY TIẾP');
-}
-
-// BỘ GÕ CỬA LIÊN TỤC (PING)
-let pingCount = 0;
-let readyTimer = setInterval(() => {
-  if (!eraConfig) {
-    pingCount++;
-    log('warn', `Gửi tín hiệu Ready lần ${pingCount}...`);
-    window.parent.postMessage({ type: 'ready' }, '*');
-    window.parent.postMessage({ action: 'ready' }, '*'); // Bắn thêm cả lệnh action đề phòng E-Ra đổi API
-  } else {
-    clearInterval(readyTimer); // Ngừng gõ cửa khi đã nhận được cấu hình
-  }
-}, 2000);
-
-</script>
 </body>
 </html>
