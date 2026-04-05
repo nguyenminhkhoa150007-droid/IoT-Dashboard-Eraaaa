@@ -80,58 +80,80 @@
         </div>
     </div>
 
+    <!-- PHẦN 1: TÍCH HỢP LÕI THƯ VIỆN E-RA TRỰC TIẾP -->
+    <!-- Thay vì dùng link bên ngoài bị lỗi, ta tạo class ERa xử lý ngầm y hệt thư viện gốc -->
     <script>
-        // Hàm cập nhật dữ liệu hiển thị
-        function updateSensorData(temp, hum) {
-            if (temp !== null) document.getElementById('tempValue').innerText = parseFloat(temp).toFixed(1);
-            if (hum !== null) document.getElementById('humValue').innerText = parseFloat(hum).toFixed(1);
-        }
+        class ERa {
+            constructor() {
+                this.listeners = {};
+                this.configReceived = false;
 
-        // ==================== LÕI GIAO TIẾP E-RA IFRAME ====================
-        let eraConfig = null;
+                window.addEventListener('message', (e) => {
+                    if (!e.data || typeof e.data !== 'object') return;
+                    
+                    const msgType = e.data.type || e.data.action;
+                    const payload = e.data.data || e.data.configuration || e.data.values || e.data;
 
-        window.addEventListener('message', (e) => {
-            if (!e.data || typeof e.data !== 'object') return;
-            if (e.data.source && typeof e.data.source === 'string' && e.data.source.includes('react')) return;
-
-            const msgType = e.data.type || e.data.action || 'Unknown';
-
-            // Nhận cấu hình từ E-Ra
-            if (msgType === 'configuration' || e.data.configuration) {
-                eraConfig = e.data.data || e.data.configuration || e.data;
-            } 
-            // Nhận dữ liệu Realtime từ E-Ra
-            else if (msgType === 'values' || e.data.values) {
-                const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
-                                 (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
-                if (!rConfigs) return;
-
-                const values = e.data.data || e.data.values || e.data;
-                let t = null, h = null;
-
-                // Ánh xạ dữ liệu dựa trên vị trí thiết lập trên E-Ra (0: Nhiệt độ, 1: Độ ẩm)
-                rConfigs.forEach((cfg, index) => {
-                    const valObj = values[cfg.id];
-                    if (valObj !== undefined) {
-                        const val = (typeof valObj === 'object' && valObj !== null) ? valObj.value : valObj;
-                        if (index === 0) t = val;
-                        if (index === 1) h = val;
+                    if (msgType === 'configuration' || e.data.configuration) {
+                        this.configReceived = true;
+                        if (this.listeners['configuration']) this.listeners['configuration'](payload);
+                    } 
+                    else if (msgType === 'values' || e.data.values) {
+                        if (this.listeners['values']) this.listeners['values'](payload);
                     }
                 });
 
-                updateSensorData(t, h);
+                // Tự động báo cho máy chủ E-Ra biết iFrame đã load xong
+                this.pingInterval = setInterval(() => {
+                    if (!this.configReceived) {
+                        window.parent.postMessage({ type: 'ready' }, '*');
+                    } else {
+                        clearInterval(this.pingInterval);
+                    }
+                }, 1500);
             }
+
+            on(eventName, callback) {
+                this.listeners[eventName] = callback;
+            }
+        }
+    </script>
+
+    <script>
+        // PHẦN 2: KHỞI TẠO VÀ BẮT SỰ KIỆN (Cú pháp giống 100% video)
+        const era = new ERa();
+        let eraConfig = null;
+
+        // Bắt cấu hình (phút 13:20)
+        era.on('configuration', (config) => {
+            eraConfig = config;
+            console.log("Đã nhận cấu hình:", eraConfig);
         });
 
-        // Báo tín hiệu Ready liên tục cho đến khi E-Ra phản hồi
-        let readyTimer = setInterval(() => {
-            if (!eraConfig) {
-                window.parent.postMessage({ type: 'ready' }, '*');
-                window.parent.postMessage({ action: 'ready' }, '*');
-            } else {
-                clearInterval(readyTimer);
+        // Bắt sự kiện values để cập nhật dữ liệu Realtime
+        era.on('values', (values) => {
+            const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
+                             (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
+            if (!rConfigs) return;
+
+            // Đọc theo vị trí thiết lập trên web E-Ra (Vị trí 0: Nhiệt độ, Vị trí 1: Độ ẩm)
+            const tempCfg = rConfigs[0];
+            const humCfg = rConfigs[1];
+
+            // Cập nhật Nhiệt độ
+            if (tempCfg && values[tempCfg.id] !== undefined) {
+                const rawVal = values[tempCfg.id];
+                const tempVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
+                document.getElementById('tempValue').innerText = parseFloat(tempVal).toFixed(1);
             }
-        }, 2000);
+            
+            // Cập nhật Độ ẩm
+            if (humCfg && values[humCfg.id] !== undefined) {
+                const rawVal = values[humCfg.id];
+                const humVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
+                document.getElementById('humValue').innerText = parseFloat(humVal).toFixed(1);
+            }
+        });
     </script>
 
 </body>
