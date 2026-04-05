@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ESP32 – Dò Line PID | ERA</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0e17;
+    --surface:   #111827;
+    --card:      #161e2e;
+    --border:    #1f2d45;
+    --accent:    #00d4ff;
+    --accent2:   #ff6b35;
+    --green:     #00e5a0;
+    --yellow:    #ffd166;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --code-bg:   #0d1521;
+    --kw:        #c792ea;
+    --fn:        #82aaff;
+    --str:       #c3e88d;
+    --num:       #f78c6c;
+    --cmt:       #546e7a;
+    --type:      #ffcb6b;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* --- GRID BG --- */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  /* --- HEADER --- */
+  header {
+    display: flex; align-items: flex-start; gap: 18px;
+    padding: 28px 28px 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 28px;
+    position: relative; overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--green), var(--accent2));
+  }
+  .header-icon {
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent) 0%, #0057ff 100%);
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+  }
+  .header-text h1 {
+    font-size: 1.45rem; font-weight: 800; letter-spacing: -.02em;
+    color: #fff; line-height: 1.2; margin-bottom: 6px;
+  }
+  .header-text p { font-size: .88rem; color: var(--muted); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.25);
+    color: var(--accent); font-size: .72rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px; margin-top: 8px;
+  }
+  .badge::before { content: '●'; font-size: .6rem; }
+
+  /* --- SECTION TITLES --- */
+  .sec-title {
+    font-size: .72rem; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sec-title::before { content: ''; display: block; width: 18px; height: 2px; background: var(--accent); }
+
+  /* --- INFO GRID --- */
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .info-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    transition: border-color .2s, transform .2s;
+  }
+  .info-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .info-card .label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .info-card .val { font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; font-weight: 700; }
+  .info-card .val.c-cyan   { color: var(--accent); }
+  .info-card .val.c-green  { color: var(--green); }
+  .info-card .val.c-orange { color: var(--accent2); }
+  .info-card .val.c-yellow { color: var(--yellow); }
+
+  /* --- BLOCK DIAGRAM --- */
+  .diagram-wrap {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px; margin-bottom: 28px; overflow-x: auto;
+  }
+  .diagram {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; flex-wrap: nowrap; min-width: 540px;
+  }
+  .dbox {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; text-align: center;
+    min-width: 90px; flex-shrink: 0;
+  }
+  .dbox .icon { font-size: 1.4rem; margin-bottom: 3px; }
+  .dbox .name { font-size: .7rem; font-weight: 600; color: var(--text); }
+  .dbox .sub  { font-size: .62rem; color: var(--muted); margin-top: 2px; }
+  .dbox.hi    { border-color: var(--accent); box-shadow: 0 0 12px rgba(0,212,255,.15); }
+  .darrow { font-size: 1.2rem; color: var(--muted); margin: 0 4px; flex-shrink: 0; }
+
+  /* --- TABS + CODE --- */
+  .tabs-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 28px; overflow: hidden; }
+  .tabs-nav {
+    display: flex; background: var(--code-bg); border-bottom: 1px solid var(--border);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .tabs-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex-shrink: 0; padding: 11px 18px;
+    font-family: 'JetBrains Mono', monospace; font-size: .75rem; font-weight: 700;
+    color: var(--muted); background: none; border: none; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tab-pane { display: none; padding: 20px; }
+  .tab-pane.active { display: block; }
+
+  /* --- CODE BLOCK --- */
+  .code-block {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    overflow: auto; max-height: 440px;
+    font-family: 'JetBrains Mono', monospace; font-size: .78rem; line-height: 1.65;
+    padding: 18px;
+    position: relative;
+  }
+  .code-block pre { white-space: pre; }
+  .kw   { color: var(--kw); }
+  .fn   { color: var(--fn); }
+  .str  { color: var(--str); }
+  .num  { color: var(--num); }
+  .cmt  { color: var(--cmt); font-style: italic; }
+  .type { color: var(--type); }
+  .mac  { color: var(--accent2); }
+
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.2);
+    color: var(--accent); font-family: 'JetBrains Mono', monospace;
+    font-size: .7rem; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+    transition: background .2s;
+  }
+  .copy-btn:hover { background: rgba(0,212,255,.2); }
+
+  /* --- EXPLANATION CARDS --- */
+  .exp-list { display: flex; flex-direction: column; gap: 14px; }
+  .exp-card {
+    background: var(--code-bg); border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0; padding: 14px 16px;
+  }
+  .exp-card.warn { border-left-color: var(--yellow); }
+  .exp-card.ok   { border-left-color: var(--green); }
+  .exp-card.hot  { border-left-color: var(--accent2); }
+  .exp-card h4 { font-size: .85rem; font-weight: 700; margin-bottom: 5px; }
+  .exp-card p  { font-size: .8rem; color: #94a3b8; line-height: 1.55; }
+  .exp-card code { font-family: 'JetBrains Mono', monospace; color: var(--num); font-size: .78rem; background: rgba(247,140,108,.1); padding: 1px 5px; border-radius: 4px; }
+
+  /* --- PID VISUAL --- */
+  .pid-visual { display: flex; flex-direction: column; gap: 16px; }
+  .pid-row { display: flex; align-items: center; gap: 12px; }
+  .pid-label {
+    width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-family: 'JetBrains Mono', monospace;
+    font-weight: 800; font-size: 1rem; flex-shrink: 0;
+  }
+  .pid-label.p { background: rgba(130,170,255,.15); color: var(--fn); }
+  .pid-label.i { background: rgba(0,229,160,.15); color: var(--green); }
+  .pid-label.d { background: rgba(255,107,53,.15); color: var(--accent2); }
+  .pid-bar-wrap { flex: 1; }
+  .pid-bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .pid-bar { height: 100%; border-radius: 4px; transition: width .8s ease; }
+  .pid-bar.p { background: var(--fn); width: 0; }
+  .pid-bar.i { background: var(--green); width: 0; }
+  .pid-bar.d { background: var(--accent2); width: 0; }
+  .pid-desc { font-size: .75rem; color: var(--muted); margin-top: 4px; }
+  .pid-val { font-family: 'JetBrains Mono', monospace; font-size: .82rem; color: var(--text); width: 70px; text-align: right; flex-shrink: 0; }
+
+  /* --- COMMAND TABLE --- */
+  .cmd-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .cmd-table th {
+    text-align: left; padding: 9px 14px; font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--muted); background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-table td { padding: 10px 14px; border-bottom: 1px solid rgba(31,45,69,.5); }
+  .cmd-table tr:last-child td { border-bottom: none; }
+  .cmd-table tr:hover td { background: rgba(0,212,255,.03); }
+  .cmd-table .cmd-code { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-weight: 700; }
+  .cmd-table .cmd-ex   { font-family: 'JetBrains Mono', monospace; color: var(--green); font-size: .75rem; }
+
+  /* --- SENSOR VIS --- */
+  .sensor-demo { display: flex; gap: 10px; align-items: flex-end; justify-content: center; padding: 20px 0; }
+  .s-cell {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+  }
+  .s-dot {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--code-bg);
+    transition: background .2s, border-color .2s, box-shadow .2s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; font-weight: 700; color: var(--muted);
+  }
+  .s-dot.on { background: var(--accent); border-color: var(--accent); color: #000; box-shadow: 0 0 14px rgba(0,212,255,.5); }
+  .s-lbl { font-size: .65rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .s-error-out {
+    text-align: center; font-family: 'JetBrains Mono', monospace;
+    font-size: .88rem; padding: 10px;
+    background: var(--code-bg); border-radius: 8px; border: 1px solid var(--border);
+  }
+  .s-error-out span { color: var(--num); font-size: 1.2rem; font-weight: 700; }
+  .s-hint { font-size: .72rem; color: var(--muted); text-align: center; margin-top: 4px; }
+
+  /* --- FOOTER --- */
+  footer {
+    text-align: center; font-size: .72rem; color: var(--muted);
+    padding-top: 24px; border-top: 1px solid var(--border); margin-top: 8px;
+  }
+
+  /* --- ANIM --- */
+  @keyframes fadeUp { from { opacity:0; transform: translateY(18px); } to { opacity:1; transform: translateY(0); } }
+  .fadein { animation: fadeUp .5s ease both; }
+  .fadein:nth-child(1) { animation-delay: .05s; }
+  .fadein:nth-child(2) { animation-delay: .12s; }
+  .fadein:nth-child(3) { animation-delay: .18s; }
+  .fadein:nth-child(4) { animation-delay: .24s; }
+  .fadein:nth-child(5) { animation-delay: .30s; }
+  .fadein:nth-child(6) { animation-delay: .36s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header class="fadein">
+    <div class="header-icon">🤖</div>
+    <div class="header-text">
+      <h1>ESP32 — Dò Line Bằng Thuật Toán PID</h1>
+      <p>Bản thực chiến · Live-Tuning qua Bluetooth &amp; Serial Monitor</p>
+      <span class="badge">ESP32 / Arduino C++</span>
+    </div>
+  </header>
+
+  <!-- INFO GRID -->
+  <div class="sec-title fadein">Thông số cấu hình</div>
+  <div class="info-grid fadein">
+    <div class="info-card"><div class="label">Tốc độ nền</div><div class="val c-cyan">60% → 153/255</div></div>
+    <div class="info-card"><div class="label">Kp (tỉ lệ)</div><div class="val c-green">4.3</div></div>
+    <div class="info-card"><div class="label">Ki (tích phân)</div><div class="val c-yellow">0.0</div></div>
+    <div class="info-card"><div class="label">Kd (vi phân)</div><div class="val c-orange">3.5</div></div>
+    <div class="info-card"><div class="label">Bluetooth Name</div><div class="val c-cyan" style="font-size:.85rem">Robot_Line_ESP32</div></div>
+    <div class="info-card"><div class="label">UART Nano</div><div class="val c-green">38400 baud</div></div>
+    <div class="info-card"><div class="label">Tránh vật cản</div><div class="val c-orange">&lt; 15 cm</div></div>
+    <div class="info-card"><div class="label">Encoder Pins</div><div class="val c-yellow">33/32 · 26/25</div></div>
+  </div>
+
+  <!-- BLOCK DIAGRAM -->
+  <div class="sec-title fadein">Sơ đồ hệ thống</div>
+  <div class="diagram-wrap fadein">
+    <div class="diagram">
+      <div class="dbox">
+        <div class="icon">📱</div>
+        <div class="name">Phone / PC</div>
+        <div class="sub">Bluetooth / USB</div>
+      </div>
+      <div class="darrow">→</div>
+      <div class="dbox hi">
+        <div class="icon">⚙️</div>
+        <div class="name">ESP32</div>
+        <div class="sub">PID + Logic</div>
+      </div>
+      <div class="darrow">⇄</div>
+      <div class="dbox">
+        <div class="icon">🔬</div>
+        <div class="name">Arduino Nano</div>
+        <div class="sub">Sensor / HC-SR04</div>
+      </div>
+      <div class="darrow">→</div>
+      <div class="dbox">
+        <div class="icon">⚡</div>
+        <div class="name">Motor Driver</div>
+        <div class="sub">L/R Speed</div>
+      </div>
+      <div class="darrow">→</div>
+      <div class="dbox">
+        <div class="icon">🛞</div>
+        <div class="name">2 Bánh xe</div>
+        <div class="sub">+ Encoder</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs-wrap fadein">
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('code')">📄 Full Code</button>
+      <button class="tab-btn" onclick="switchTab('pid')">🧠 PID Logic</button>
+      <button class="tab-btn" onclick="switchTab('sensor')">🔦 Sensor Demo</button>
+      <button class="tab-btn" onclick="switchTab('cmd')">📡 Lệnh Tuning</button>
+      <button class="tab-btn" onclick="switchTab('explain')">📝 Giải thích</button>
+    </div>
+
+    <!-- ==================== TAB: CODE ==================== -->
+    <div class="tab-pane active" id="tab-code">
+      <div class="code-block" id="codeBlock">
+        <button class="copy-btn" onclick="copyCode()">⎘ Copy</button>
+        <pre><span class="cmt">// ================================================================
+//  ESP32 — DÒ LINE BẰNG THUẬT TOÁN PID (BẢN THỰC CHIẾN)
+//  TÍNH NĂNG: Live-Tuning qua Bluetooth / Serial Monitor
+// ================================================================</span>
+
+<span class="mac">#include</span> <span class="str">"BluetoothSerial.h"</span>
+
+<span class="mac">#if</span> !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+<span class="mac">#error</span> <span class="str">Bluetooth is not enabled!</span>
+<span class="mac">#endif</span>
+<span class="type">BluetoothSerial</span> SerialBT;
+
+<span class="mac">#define</span> <span class="fn">UART_RX</span>   <span class="num">16</span>
+<span class="mac">#define</span> <span class="fn">UART_TX</span>   <span class="num">17</span>
+<span class="mac">#define</span> <span class="fn">ENC1_A</span>    <span class="num">33</span>
+<span class="mac">#define</span> <span class="fn">ENC1_B</span>    <span class="num">32</span>
+<span class="mac">#define</span> <span class="fn">ENC2_A</span>    <span class="num">26</span>
+<span class="mac">#define</span> <span class="fn">ENC2_B</span>    <span class="num">25</span>
+<span class="mac">#define</span> <span class="fn">PCT</span>(p) (((<span class="type">int</span>)((p) * <span class="num">255</span> / <span class="num">100</span>)))
+
+<span class="cmt">// --- THÔNG SỐ ĐIỀU CHỈNH QUA APP/SERIAL ---</span>
+<span class="type">int</span>   BASE_SPEED = <span class="fn">PCT</span>(<span class="num">60</span>);
+<span class="type">float</span> Kp = <span class="num">4.3</span>;  <span class="type">float</span> Ki = <span class="num">0.0</span>;  <span class="type">float</span> Kd = <span class="num">3.5</span>;
+
+<span class="cmt">// --- THÔNG SỐ CỐ ĐỊNH ---</span>
+<span class="kw">const</span> <span class="type">int</span> SPD_PIVOT      = <span class="fn">PCT</span>(<span class="num">85</span>);
+<span class="kw">const</span> <span class="type">unsigned long</span> CONFIRM_MS = <span class="num">100</span>;
+<span class="kw">const</span> <span class="type">unsigned long</span> PIVOT_MS   = <span class="num">400</span>;
+<span class="kw">const</span> <span class="type">int</span> DIST_OBSTACLE  = <span class="num">15</span>;
+<span class="kw">const</span> <span class="type">unsigned long</span> NANO_TIMEOUT_MS = <span class="num">500</span>;
+
+<span class="type">int</span> lastError = <span class="num">0</span>;
+<span class="type">int</span> integral  = <span class="num">0</span>;
+<span class="kw">volatile</span> <span class="type">long</span> encCountL = <span class="num">0</span>;
+<span class="kw">volatile</span> <span class="type">long</span> encCountR = <span class="num">0</span>;
+
+<span class="kw">void</span> <span class="fn">IRAM_ATTR</span> <span class="fn">isrEncL</span>() {
+  <span class="kw">if</span> (<span class="fn">digitalRead</span>(ENC1_A) == <span class="fn">digitalRead</span>(ENC1_B)) encCountL--;
+  <span class="kw">else</span> encCountL++;
+}
+<span class="kw">void</span> <span class="fn">IRAM_ATTR</span> <span class="fn">isrEncR</span>() {
+  <span class="kw">if</span> (<span class="fn">digitalRead</span>(ENC2_A) == <span class="fn">digitalRead</span>(ENC2_B)) encCountR++;
+  <span class="kw">else</span> encCountR--;
+}
+
+<span class="cmt">// ════ PARSE DỮ LIỆU TỪ NANO ════</span>
+<span class="kw">void</span> <span class="fn">parseNanoData</span>(<span class="kw">const</span> <span class="type">String</span>&amp; raw) {
+  <span class="kw">if</span> (!raw.<span class="fn">startsWith</span>(<span class="str">"#S"</span>)) <span class="kw">return</span>;
+  <span class="type">int</span> comma = raw.<span class="fn">indexOf</span>(<span class="str">','</span>, <span class="num">2</span>);
+  <span class="kw">if</span> (comma &lt; <span class="num">0</span>) <span class="kw">return</span>;
+  <span class="type">int</span> d = raw.<span class="fn">substring</span>(<span class="num">2</span>, comma).<span class="fn">toInt</span>();
+  <span class="kw">if</span> (d &gt; <span class="num">0</span> &amp;&amp; d &lt; <span class="num">400</span>) distCm = d;
+  <span class="type">String</span> sStr = raw.<span class="fn">substring</span>(comma + <span class="num">1</span>);
+  sStr.<span class="fn">trim</span>();
+  <span class="kw">if</span> (sStr.<span class="fn">length</span>() &lt; <span class="num">5</span>) <span class="kw">return</span>;
+  <span class="kw">for</span> (<span class="type">int</span> i = <span class="num">0</span>; i &lt; <span class="num">5</span>; i++) {
+    sensor[i] = (sStr[i] == <span class="str">'1'</span>) ? <span class="num">1</span> : <span class="num">0</span>;
+  }
+  lastNanoMs = <span class="fn">millis</span>();
+  nanoReady  = <span class="kw">true</span>;
+}
+
+<span class="cmt">// ════ PID LOGIC CHÍNH ════</span>
+<span class="kw">void</span> <span class="fn">runLineFollow</span>() {
+  <span class="kw">if</span> (distCm &gt; <span class="num">0</span> &amp;&amp; distCm &lt; DIST_OBSTACLE) {
+    <span class="fn">sendMotorNow</span>(<span class="num">0</span>, <span class="num">0</span>); <span class="kw">return</span>;  <span class="cmt">// Dừng né vật cản</span>
+  }
+
+  <span class="type">int</span> code = <span class="fn">getSensorCode</span>();
+
+  <span class="cmt">// Phát hiện góc vuông / ngã rẽ</span>
+  <span class="kw">if</span> (code == <span class="num">0x1F</span>) { <span class="fn">sendMotorNow</span>(<span class="num">0</span>, <span class="num">0</span>); <span class="kw">return</span>; }     <span class="cmt">// 11111 → Dừng</span>
+  <span class="kw">if</span> (code == <span class="num">0x1C</span> || code == <span class="num">0x1E</span> || code == <span class="num">0x18</span>) { <span class="cmt">// Rẽ trái</span>
+    <span class="fn">sendMotorNow</span>(SPD_PIVOT, <span class="num">0</span>);
+  }
+  <span class="kw">if</span> (code == <span class="num">0x07</span> || code == <span class="num">0x0F</span> || code == <span class="num">0x03</span>) { <span class="cmt">// Rẽ phải</span>
+    <span class="fn">sendMotorNow</span>(<span class="num">0</span>, SPD_PIVOT);
+  }
+
+  <span class="cmt">// Tính error từ sensor</span>
+  <span class="type">int</span> weights[<span class="num">5</span>] = {<span class="num">-20</span>, <span class="num">-10</span>, <span class="num">0</span>, <span class="num">10</span>, <span class="num">20</span>};
+  <span class="type">int</span> sum = <span class="num">0</span>, active = <span class="num">0</span>;
+  <span class="kw">for</span> (<span class="type">int</span> i = <span class="num">0</span>; i &lt; <span class="num">5</span>; i++) {
+    <span class="kw">if</span> (sensor[i]) { sum += weights[i]; active++; }
+  }
+  <span class="type">int</span> error = (active &gt; <span class="num">0</span>) ? (sum / active) : (lastError &gt; <span class="num">0</span> ? <span class="num">25</span> : <span class="num">-25</span>);
+
+  <span class="cmt">// PID Calculation</span>
+  <span class="type">int</span> P = error;
+  integral += error;
+  integral = <span class="fn">constrain</span>(integral, <span class="num">-100</span>, <span class="num">100</span>);
+  <span class="type">int</span> D = error - lastError;
+  lastError = error;
+
+  <span class="type">int</span> offset = (Kp * P) + (Ki * integral) + (Kd * D);
+  <span class="fn">sendMotorNow</span>(BASE_SPEED - offset, BASE_SPEED + offset);
+}
+
+<span class="kw">void</span> <span class="fn">setup</span>() {
+  Serial.<span class="fn">begin</span>(<span class="num">115200</span>);
+  SerialBT.<span class="fn">begin</span>(<span class="str">"Robot_Line_ESP32"</span>);
+  Serial2.<span class="fn">begin</span>(<span class="num">38400</span>, SERIAL_8N1, UART_RX, UART_TX);
+  <span class="cmt">// ... setup encoder interrupts ...</span>
+}
+
+<span class="kw">void</span> <span class="fn">loop</span>() {
+  <span class="fn">drainUART</span>();
+  <span class="fn">checkBluetoothAndSerial</span>();
+
+  <span class="kw">if</span> (!nanoReady) <span class="kw">return</span>;
+  <span class="fn">runLineFollow</span>();
+  <span class="fn">delay</span>(<span class="num">5</span>);
+}</pre>
+      </div>
+    </div>
+
+    <!-- ==================== TAB: PID ==================== -->
+    <div class="tab-pane" id="tab-pid">
+      <div class="pid-visual">
+        <p style="font-size:.82rem; color:var(--muted); margin-bottom:8px;">
+          Công thức: <code style="font-family:'JetBrains Mono',monospace; color:var(--accent)">offset = Kp×P + Ki×I + Kd×D</code>
+          &nbsp;→&nbsp; Motor L = BaseSpeed − offset &nbsp;|&nbsp; Motor R = BaseSpeed + offset
+        </p>
+        <div class="pid-row">
+          <div class="pid-label p">P</div>
+          <div class="pid-bar-wrap">
+            <div class="pid-bar-track"><div class="pid-bar p" id="barP"></div></div>
+            <div class="pid-desc">Kp = 4.3 · Phản ứng tức thì theo độ lệch. Kp cao → bẻ lái mạnh, dễ rung lắc.</div>
+          </div>
+          <div class="pid-val" id="valP">Kp = 4.3</div>
+        </div>
+        <div class="pid-row">
+          <div class="pid-label i">I</div>
+          <div class="pid-bar-wrap">
+            <div class="pid-bar-track"><div class="pid-bar i" id="barI"></div></div>
+            <div class="pid-desc">Ki = 0.0 · Tích lũy sai số theo thời gian. Hiện tắt (0), phù hợp dò line ngắn.</div>
+          </div>
+          <div class="pid-val" id="valI">Ki = 0.0</div>
+        </div>
+        <div class="pid-row">
+          <div class="pid-label d">D</div>
+          <div class="pid-bar-wrap">
+            <div class="pid-bar-track"><div class="pid-bar d" id="barD"></div></div>
+            <div class="pid-desc">Kd = 3.5 · Dự đoán xu hướng thay đổi. Kd cao → giảm dao động, chạy mượt hơn.</div>
+          </div>
+          <div class="pid-val" id="valD">Kd = 3.5</div>
+        </div>
+
+        <div style="background:var(--code-bg); border-radius:10px; padding:16px; margin-top:8px;">
+          <div class="sec-title" style="margin-bottom:12px;">Bảng trọng số sensor</div>
+          <div style="display:flex; gap:8px; justify-content:center; align-items:flex-end;">
+            <div style="text-align:center;">
+              <div style="width:48px; height:48px; background:rgba(247,140,108,.2); border:1px solid var(--num); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--num); font-size:1.1rem;">−20</div>
+              <div style="font-size:.65rem; color:var(--muted); margin-top:5px;">S1<br>Trái xa</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="width:48px; height:48px; background:rgba(247,140,108,.12); border:1px solid rgba(247,140,108,.4); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--num); font-size:1.1rem;">−10</div>
+              <div style="font-size:.65rem; color:var(--muted); margin-top:5px;">S2<br>Trái gần</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="width:56px; height:56px; background:rgba(0,212,255,.15); border:2px solid var(--accent); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--accent); font-size:1.2rem;">0</div>
+              <div style="font-size:.65rem; color:var(--muted); margin-top:5px;">S3<br>Giữa ✓</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="width:48px; height:48px; background:rgba(0,229,160,.12); border:1px solid rgba(0,229,160,.4); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--green); font-size:1.1rem;">+10</div>
+              <div style="font-size:.65rem; color:var(--muted); margin-top:5px;">S4<br>Phải gần</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="width:48px; height:48px; background:rgba(0,229,160,.2); border:1px solid var(--green); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--green); font-size:1.1rem;">+20</div>
+              <div style="font-size:.65rem; color:var(--muted); margin-top:5px;">S5<br>Phải xa</div>
+            </div>
+          </div>
+          <div style="text-align:center; margin-top:12px; font-size:.75rem; color:var(--muted);">
+            error = Σ(weight × sensor) / số sensor sáng &nbsp;→&nbsp; <span style="color:var(--text)">Error âm = lệch trái · Error dương = lệch phải</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB: SENSOR ==================== -->
+    <div class="tab-pane" id="tab-sensor">
+      <p style="font-size:.8rem; color:var(--muted); margin-bottom:16px;">Click vào sensor để bật/tắt và xem error PID tính ra là bao nhiêu:</p>
+      <div class="sensor-demo">
+        <div class="s-cell" onclick="toggleSensor(0)">
+          <div class="s-dot" id="sd0">S1</div>
+          <div class="s-lbl">−20</div>
+        </div>
+        <div class="s-cell" onclick="toggleSensor(1)">
+          <div class="s-dot" id="sd1">S2</div>
+          <div class="s-lbl">−10</div>
+        </div>
+        <div class="s-cell" onclick="toggleSensor(2)">
+          <div class="s-dot" id="sd2">S3</div>
+          <div class="s-lbl">0</div>
+        </div>
+        <div class="s-cell" onclick="toggleSensor(3)">
+          <div class="s-dot" id="sd3">S4</div>
+          <div class="s-lbl">+10</div>
+        </div>
+        <div class="s-cell" onclick="toggleSensor(4)">
+          <div class="s-dot" id="sd4">S5</div>
+          <div class="s-lbl">+20</div>
+        </div>
+      </div>
+      <div class="s-error-out" id="sErrorOut">Chưa có sensor nào sáng</div>
+      <div class="s-hint">Mã sensor: <span id="sCode" style="font-family:'JetBrains Mono',monospace; color:var(--yellow)">00000</span></div>
+
+      <div style="margin-top:20px; background:var(--code-bg); border-radius:10px; padding:14px;">
+        <div style="font-size:.75rem; color:var(--muted); margin-bottom:10px; text-transform:uppercase; letter-spacing:.08em;">Các trường hợp đặc biệt</div>
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:.78rem;">
+          <div style="display:flex; justify-content:space-between; padding:7px 10px; background:rgba(31,45,69,.5); border-radius:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; color:var(--accent)">11111 (0x1F)</span>
+            <span style="color:var(--text)">Gặp vạch ngang → Dừng hẳn</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:7px 10px; background:rgba(31,45,69,.5); border-radius:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; color:var(--accent2)">11100 / 11110 / 11000</span>
+            <span style="color:var(--text)">Ngã rẽ trái → Pivot trái</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:7px 10px; background:rgba(31,45,69,.5); border-radius:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; color:var(--green)">00111 / 01111 / 00011</span>
+            <span style="color:var(--text)">Ngã rẽ phải → Pivot phải</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:7px 10px; background:rgba(31,45,69,.5); border-radius:6px;">
+            <span style="font-family:'JetBrains Mono',monospace; color:var(--yellow)">00000 (0x00)</span>
+            <span style="color:var(--text)">Mất line → Dựa vào lastError</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB: LỆNH TUNING ==================== -->
+    <div class="tab-pane" id="tab-cmd">
+      <p style="font-size:.8rem; color:var(--muted); margin-bottom:16px;">
+        Gửi lệnh qua <strong style="color:var(--accent)">Serial Monitor (USB)</strong> hoặc
+        <strong style="color:var(--green)">Bluetooth Terminal</strong> — kết nối tên <code style="font-family:'JetBrains Mono',monospace; color:var(--yellow)">Robot_Line_ESP32</code>
+      </p>
+      <table class="cmd-table">
+        <thead>
+          <tr>
+            <th>Lệnh</th>
+            <th>Ý nghĩa</th>
+            <th>Ví dụ</th>
+            <th>Phản hồi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="cmd-code">P=&lt;số&gt;</span></td>
+            <td>Đổi hệ số Kp</td>
+            <td><span class="cmd-ex">P=5.5</span></td>
+            <td style="color:var(--muted); font-size:.75rem;">→ Da update Kp = 5.50</td>
+          </tr>
+          <tr>
+            <td><span class="cmd-code">I=&lt;số&gt;</span></td>
+            <td>Đổi hệ số Ki</td>
+            <td><span class="cmd-ex">I=0.1</span></td>
+            <td style="color:var(--muted); font-size:.75rem;">→ Da update Ki = 0.10</td>
+          </tr>
+          <tr>
+            <td><span class="cmd-code">D=&lt;số&gt;</span></td>
+            <td>Đổi hệ số Kd</td>
+            <td><span class="cmd-ex">D=15</span></td>
+            <td style="color:var(--muted); font-size:.75rem;">→ Da update Kd = 15.00</td>
+          </tr>
+          <tr>
+            <td><span class="cmd-code">S=&lt;%&gt;</span></td>
+            <td>Đổi tốc độ nền (%)</td>
+            <td><span class="cmd-ex">S=70</span></td>
+            <td style="color:var(--muted); font-size:.75rem;">→ Da update Speed = 70%</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;">
+        <div class="sec-title" style="margin-bottom:12px;">Giao thức UART với Nano</div>
+        <div style="background:var(--code-bg); border-radius:10px; padding:14px; font-family:'JetBrains Mono',monospace; font-size:.78rem; line-height:2;">
+          <div><span style="color:var(--muted)">// Nano → ESP32 (cảm biến + khoảng cách):</span></div>
+          <div><span style="color:var(--green)">#S15,10110\n</span> <span style="color:var(--muted)">// dist=15cm, sensor=10110</span></div>
+          <div style="margin-top:8px;"><span style="color:var(--muted)">// ESP32 → Nano (điều khiển motor):</span></div>
+          <div><span style="color:var(--accent)">#M150,160\n</span> <span style="color:var(--muted)">// L=150, R=160 (0..255)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB: GIẢI THÍCH ==================== -->
+    <div class="tab-pane" id="tab-explain">
+      <div class="exp-list">
+        <div class="exp-card">
+          <h4>📡 Tại sao dùng 2 MCU (ESP32 + Nano)?</h4>
+          <p>ESP32 lo PID, Bluetooth, xử lý logic phức tạp. Nano lo đọc cảm biến hồng ngoại + HC-SR04 siêu âm theo thời gian thực và gửi dữ liệu qua UART <code>38400 baud</code> với định dạng <code>#S&lt;dist&gt;,&lt;sensors&gt;</code>. Phân tách nhiệm vụ giúp mỗi MCU chạy đúng sức mạnh của nó.</p>
+        </div>
+        <div class="exp-card ok">
+          <h4>⚡ IRAM_ATTR cho ISR Encoder là gì?</h4>
+          <p>Khi ESP32 truy cập Flash (đọc code, WiFi, BT...) thì Flash bị khóa tạm. Nếu ISR ở Flash → crash. <code>IRAM_ATTR</code> đặt ISR vào RAM nội (IRAM) → chạy ngay lập tức, không bao giờ bị block. Đặc biệt quan trọng cho encoder vì xung rất nhanh.</p>
+        </div>
+        <div class="exp-card warn">
+          <h4>⚠️ Tại sao integral bị clamp ±100?</h4>
+          <p>Nếu robot bị lạc đường lâu, integral sẽ tích lũy rất lớn gây hiện tượng <em>integrator windup</em> — khi quay lại đường thẳng, robot vẫn bẻ lái mạnh một thời gian dài. <code>constrain(integral, -100, 100)</code> giới hạn tích lũy, giúp phản ứng nhanh hơn khi tìm lại line.</p>
+        </div>
+        <div class="exp-card hot">
+          <h4>🔥 sendMotorNow chỉ gửi khi thay đổi</h4>
+          <p>So sánh <code>currentLeft != lastSentL</code> trước khi <code>Serial2.printf</code> giúp giảm lưu lượng UART đáng kể — đặc biệt khi robot đi thẳng (motor không đổi liên tục). Tránh saturate bộ đệm 38400 baud của Nano.</p>
+        </div>
+        <div class="exp-card">
+          <h4>🔄 Tại sao Ki = 0 trong thực tế dò line?</h4>
+          <p>Track dò line ngắn, sai số thường không tích lũy lâu. Ki tăng nguy cơ windup và làm robot dao động ở đường thẳng. Chỉ bật Ki khi có độ lệch hệ thống liên tục (ví dụ ma sát không đều 2 bánh) và cần fine-tune rất cẩn thận.</p>
+        </div>
+        <div class="exp-card ok">
+          <h4>📲 Live-Tuning qua Bluetooth</h4>
+          <p>Dùng app <strong>Serial Bluetooth Terminal</strong> (Android) hoặc bất kỳ BT terminal nào. Kết nối tên <code>Robot_Line_ESP32</code>, gửi lệnh <code>P=5.5</code> + Enter. Thông số thay đổi ngay lập tức mà không cần nạp lại firmware — rất tiện khi chạy trên track thực.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="fadein">
+    ESP32 PID Line Follower · ERA Embedded Systems · Arduino C++ &amp; Bluetooth Serial
+  </footer>
+</div>
+
+<script>
+  // --- TABS ---
+  function switchTab(id) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    event.target.classList.add('active');
+    if (id === 'pid') animatePidBars();
+  }
+
+  // --- PID BARS ---
+  function animatePidBars() {
+    setTimeout(() => {
+      document.getElementById('barP').style.width = '86%';
+      document.getElementById('barI').style.width = '0%';
+      document.getElementById('barD').style.width = '70%';
+    }, 100);
+  }
+
+  // --- COPY CODE ---
+  function copyCode() {
+    const rawCode = `// ESP32 PID Line Follower — Full Source
+// See ERA platform for full annotated version
+#include "BluetoothSerial.h"
+// ... (copy from ERA page)
+`;
+    const btn = document.querySelector('.copy-btn');
+    // Try clipboard API
+    if (navigator.clipboard) {
+      const text = document.querySelector('#codeBlock pre').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = '⎘ Copy', 2000);
+      });
+    } else {
+      btn.textContent = '✓ Done';
+      setTimeout(() => btn.textContent = '⎘ Copy', 2000);
+    }
+  }
+
+  // --- SENSOR DEMO ---
+  const sStates = [0, 0, 0, 0, 0];
+  const weights = [-20, -10, 0, 10, 20];
+
+  function toggleSensor(i) {
+    sStates[i] = sStates[i] ? 0 : 1;
+    document.getElementById('sd' + i).classList.toggle('on', !!sStates[i]);
+    updateSensorError();
+  }
+
+  function updateSensorError() {
+    const active = sStates.filter(s => s).length;
+    const code = sStates.map((v, i) => v ? '1' : '0').join('');
+    document.getElementById('sCode').textContent = code;
+
+    const codeVal = parseInt(code, 2);
+    const out = document.getElementById('sErrorOut');
+
+    if (codeVal === 0b11111) {
+      out.innerHTML = '<span style="color:var(--yellow)">🛑 Gặp vạch ngang — DỪNG</span>';
+      return;
+    }
+    if ([0b11100, 0b11110, 0b11000].includes(codeVal)) {
+      out.innerHTML = '<span style="color:var(--accent2)">↺ Ngã rẽ TRÁI — Pivot</span>';
+      return;
+    }
+    if ([0b00111, 0b01111, 0b00011].includes(codeVal)) {
+      out.innerHTML = '<span style="color:var(--green)">↻ Ngã rẽ PHẢI — Pivot</span>';
+      return;
+    }
+    if (active === 0) {
+      out.innerHTML = '<span style="color:var(--muted)">⚫ Mất line — dựa vào lastError</span>';
+      return;
+    }
+    let sum = 0;
+    sStates.forEach((v, i) => { if (v) sum += weights[i]; });
+    const error = Math.round(sum / active);
+    const offset = Math.round(4.3 * error + 3.5 * error); // simplified (no D history)
+    const L = 153 - offset, R = 153 + offset;
+    let dir = error < 0 ? '← Lệch TRÁI' : error > 0 ? '→ Lệch PHẢI' : '↑ Đi THẲNG';
+    out.innerHTML = `error = <span>${error}</span> &nbsp;|&nbsp; Motor L = <span style="color:var(--fn)">${Math.max(0,Math.min(255,L))}</span> &nbsp;|&nbsp; Motor R = <span style="color:var(--green)">${Math.max(0,Math.min(255,R))}</span> &nbsp;<span style="color:var(--muted)">(${dir})</span>`;
+  }
+
+  // Init: light up center sensor
+  window.onload = () => {
+    toggleSensor(2);
+  };
+</script>
+</body>
+</html>
