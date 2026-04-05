@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Line Follower - E-Ra Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .sensor-display {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .sensor-box {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            transition: all 0.3s;
+            border: 2px solid #ddd;
+        }
+
+        .sensor-box.active {
+            background: #FF6B6B;
+            border-color: #FF6B6B;
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+        }
+
+        .sensor-box.inactive {
+            background: #CCCCCC;
+            border-color: #999;
+        }
+
+        .value-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .value-row:last-child {
+            border-bottom: none;
+        }
+
+        .value-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .value-display {
+            font-size: 1.3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .pid-controls {
+            display: grid;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-group input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .control-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-send {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-send:hover {
+            background: #5568d3;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-reset {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #667eea;
+        }
+
+        .btn-reset:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.online {
+            background: #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        .status-indicator.offline {
+            background: #f44336;
+        }
+
+        .status-bar {
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .iframe-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+
+        .iframe-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            iframe {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🤖 Robot Line Follower Dashboard</h1>
+            <p>Real-time Monitoring & Control via E-Ra IoT Platform</p>
+        </div>
+
+        <!-- MAIN DASHBOARD -->
+        <div class="dashboard-grid">
+            <!-- CARD 1: SENSOR STATUS -->
+            <div class="card">
+                <h3>📍 Line Sensors</h3>
+                <div class="sensor-display" id="sensorDisplay">
+                    <div class="sensor-box inactive">0</div>
+                    <div class="sensor-box inactive">0</div>
+                    <div class="sensor-box inactive">0</div>
+                    <div class="sensor-box inactive">0</div>
+                    <div class="sensor-box inactive">0</div>
+                </div>
+                <div class="value-row" style="margin-top: 15px;">
+                    <span class="value-label">Sensor Code:</span>
+                    <span class="value-display" id="sensorCode">0x00</span>
+                </div>
+            </div>
+
+            <!-- CARD 2: DISTANCE & SPEED -->
+            <div class="card">
+                <h3>📏 Robot Status</h3>
+                <div class="value-row">
+                    <span class="value-label">Distance:</span>
+                    <span class="value-display" id="distanceValue">-- cm</span>
+                </div>
+                <div class="value-row">
+                    <span class="value-label">Speed:</span>
+                    <span class="value-display" id="speedValue">-- %</span>
+                </div>
+                <div class="value-row">
+                    <span class="value-label">Status:</span>
+                    <span class="value-display">
+                        <span class="status-indicator online"></span>
+                        <span id="robotStatus">Running</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- CARD 3: PID VALUES -->
+            <div class="card">
+                <h3>⚙️ PID Parameters</h3>
+                <div class="value-row">
+                    <span class="value-label">Kp:</span>
+                    <span class="value-display" id="kpValue">--</span>
+                </div>
+                <div class="value-row">
+                    <span class="value-label">Ki:</span>
+                    <span class="value-display" id="kiValue">--</span>
+                </div>
+                <div class="value-row">
+                    <span class="value-label">Kd:</span>
+                    <span class="value-display" id="kdValue">--</span>
+                </div>
+            </div>
+
+            <!-- CARD 4: PID CONTROLLER -->
+            <div class="card">
+                <h3>🎮 PID Tuning</h3>
+                <div class="pid-controls">
+                    <div class="control-group">
+                        <label>Kp Value: <span id="kpDisplay">4.3</span></label>
+                        <input type="range" id="kpSlider" min="0" max="10" step="0.1" value="4.3">
+                    </div>
+                    <div class="control-group">
+                        <label>Ki Value: <span id="kiDisplay">0.0</span></label>
+                        <input type="range" id="kiSlider" min="0" max="5" step="0.1" value="0.0">
+                    </div>
+                    <div class="control-group">
+                        <label>Kd Value: <span id="kdDisplay">3.5</span></label>
+                        <input type="range" id="kdSlider" min="0" max="10" step="0.1" value="3.5">
+                    </div>
+                    <div class="control-group">
+                        <label>Speed: <span id="speedDisplay">60</span>%</label>
+                        <input type="range" id="speedSlider" min="20" max="100" step="5" value="60">
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 5: CONTROL BUTTONS -->
+            <div class="card">
+                <h3>🎛️ Actions</h3>
+                <div class="button-group">
+                    <button class="btn-send" onclick="sendSettings()">📤 Send to ESP32</button>
+                    <button class="btn-reset" onclick="resetToDefault()">🔄 Reset</button>
+                </div>
+                <div class="status-bar" style="margin-top: 15px;">
+                    <div class="status-item">
+                        <span class="status-indicator" id="wifiStatus"></span>
+                        WiFi: <span id="wifiText">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-indicator online"></span>
+                        E-Ra: <span id="eraText">Connected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 6: COMMAND LOG -->
+            <div class="card">
+                <h3>📋 Recent Commands</h3>
+                <div id="commandLog" style="max-height: 200px; overflow-y: auto; font-size: 0.9em;">
+                    <p style="color: #999;">Waiting for commands...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- E-RA IFRAME SECTION -->
+        <div class="iframe-section">
+            <h2>📊 E-Ra Cloud Dashboard</h2>
+            <p style="margin-bottom: 15px; color: #666;">Embedded E-Ra Dashboard for detailed analytics and monitoring</p>
+            <iframe src="https://app.eracloud.io/dashboard/YOUR_PROJECT_ID" 
+                    title="E-Ra Dashboard"
+                    allow="camera; microphone; encrypted-media">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        const ESP32_IP = "192.168.1.100";  // Thay IP ESP32 của bạn
+        const ESP32_PORT = 8080;            // Port nếu có
+        const UPDATE_INTERVAL = 2000;       // Cập nhật mỗi 2 giây
+
+        // ===== MOCK DATA (Thay bằng dữ liệu thực từ ESP32) =====
+        let robotData = {
+            sensor_line: 0b01010,
+            distance_cm: 25,
+            kp: 4.3,
+            ki: 0.0,
+            kd: 3.5,
+            speed_percent: 60,
+            wifi_connected: true
+        };
+
+        // ===== CẬP NHẬT UI =====
+        function updateUI() {
+            // Cập nhật sensor
+            const sensorBits = robotData.sensor_line.toString(2).padStart(5, '0');
+            const sensorDisplay = document.getElementById('sensorDisplay');
+            sensorDisplay.innerHTML = '';
+            
+            for (let i = 0; i < 5; i++) {
+                const box = document.createElement('div');
+                box.className = 'sensor-box';
+                box.textContent = sensorBits[i];
+                
+                if (sensorBits[i] === '1') {
+                    box.classList.add('active');
+                    box.classList.remove('inactive');
+                } else {
+                    box.classList.add('inactive');
+                    box.classList.remove('active');
+                }
+                sensorDisplay.appendChild(box);
+            }
+
+            // Cập nhật giá trị
+            document.getElementById('sensorCode').textContent = '0x' + robotData.sensor_line.toString(16).toUpperCase().padStart(2, '0');
+            document.getElementById('distanceValue').textContent = robotData.distance_cm + ' cm';
+            document.getElementById('speedValue').textContent = robotData.speed_percent + ' %';
+            document.getElementById('kpValue').textContent = robotData.kp.toFixed(2);
+            document.getElementById('kiValue').textContent = robotData.ki.toFixed(2);
+            document.getElementById('kdValue').textContent = robotData.kd.toFixed(2);
+
+            // Cập nhật status
+            document.getElementById('wifiStatus').className = 'status-indicator' + (robotData.wifi_connected ? ' online' : ' offline');
+            document.getElementById('wifiText').textContent = robotData.wifi_connected ? 'Connected' : 'Disconnected';
+        }
+
+        // ===== GỬI LỆNH ĐẾN ESP32 =====
+        function sendSettings() {
+            const command = {
+                kp: parseFloat(document.getElementById('kpSlider').value),
+                ki: parseFloat(document.getElementById('kiSlider').value),
+                kd: parseFloat(document.getElementById('kdSlider').value),
+                speed: parseInt(document.getElementById('speedSlider').value)
+            };
+
+            console.log('📤 Sending command:', command);
+
+            // Gửi qua fetch (nếu ESP32 có web server)
+            fetch(`http://${ESP32_IP}:${ESP32_PORT}/api/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(command)
+            })
+            .then(response => response.json())
+            .then(data => {
+                addLog(`✅ Settings sent: Kp=${command.kp}, Ki=${command.ki}, Kd=${command.kd}, Speed=${command.speed}%`);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addLog(`❌ Error sending settings: ${error.message}`);
+            });
+        }
+
+        // ===== RESET VỀ MẶC ĐỊNH =====
+        function resetToDefault() {
+            document.getElementById('kpSlider').value = 4.3;
+            document.getElementById('kiSlider').value = 0.0;
+            document.getElementById('kdSlider').value = 3.5;
+            document.getElementById('speedSlider').value = 60;
+
+            document.getElementById('kpDisplay').textContent = '4.3';
+            document.getElementById('kiDisplay').textContent = '0.0';
+            document.getElementById('kdDisplay').textContent = '3.5';
+            document.getElementById('speedDisplay').textContent = '60';
+
+            addLog('🔄 Reset to default values');
+        }
+
+        // ===== CẬP NHẬT GIÁ TRỊ SLIDER =====
+        document.getElementById('kpSlider').addEventListener('input', (e) => {
+            document.getElementById('kpDisplay').textContent = e.target.value;
+        });
+        document.getElementById('kiSlider').addEventListener('input', (e) => {
+            document.getElementById('kiDisplay').textContent = e.target.value;
+        });
+        document.getElementById('kdSlider').addEventListener('input', (e) => {
+            document.getElementById('kdDisplay').textContent = e.target.value;
+        });
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            document.getElementById('speedDisplay').textContent = e.target.value;
+        });
+
+        // ===== THÊM LOG =====
+        function addLog(message) {
+            const log = document.getElementById('commandLog');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('p');
+            entry.textContent = `[${time}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+            
+            if (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // ===== LẤY DỮ LIỆU TỬ ESP32 =====
+        function fetchRobotData() {
+            fetch(`http://${ESP32_IP}:${ESP32_PORT}/api/data`)
+                .then(response => response.json())
+                .then(data => {
+                    robotData = data;
+                    updateUI();
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    document.getElementById('wifiStatus').className = 'status-indicator offline';
+                    document.getElementById('wifiText').textContent = 'Error';
+                });
+        }
+
+        // ===== KHỞI TẠO =====
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUI();
+            setInterval(fetchRobotData, UPDATE_INTERVAL);
+        });
+    </script>
+</body>
+</html>
