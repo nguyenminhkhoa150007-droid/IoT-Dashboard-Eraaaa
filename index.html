@@ -148,7 +148,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
-// ==================== KHỞI TẠO BIỂU ĐỒ ====================
 const MAX_PTS = 60, tLabels = [], distArr = [], mlArr = [], mrArr = [];
 const chart = new Chart(document.getElementById('chart').getContext('2d'), {
   type: 'line',
@@ -166,7 +165,6 @@ function pushChart(d, ml, mr) {
   chart.update('none');
 }
 
-// ==================== CẬP NHẬT GIAO DIỆN ====================
 function render(d) {
   setText('mDist', d.dist !== null ? d.dist : '–'); setText('mSpeed', d.speed !== null ? d.speed : '–'); setText('mError', d.err !== null ? d.err : '–');
   const rssiEl = document.getElementById('mRssi'); rssiEl.textContent = d.rssi !== null ? d.rssi : '–';
@@ -193,41 +191,42 @@ function setMotor(barId, valId, v) {
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 function log(type, msg) {
   const box = document.getElementById('logBox'); const p = document.createElement('p'); p.className = type; p.textContent = `[${new Date().toLocaleTimeString('vi', { hour12: false })}] ${msg}`;
-  box.insertBefore(p, box.firstChild); while (box.children.length > 20) box.removeChild(box.lastChild);
+  box.insertBefore(p, box.firstChild); while (box.children.length > 25) box.removeChild(box.lastChild);
 }
 
-// ==================== LÕI GIAO TIẾP E-RA IFRAME (UPDATE) ====================
+// ==================== RADAR QUÉT LIÊN TỤC VÀ BẮT LỖI E-RA ====================
 let eraConfig = null;
 let currentData = { dist:null, sCode:null, motorL:null, motorR:null, err:null, kp:null, ki:null, kd:null, speed:null, rssi:null };
 
 window.addEventListener('message', (e) => {
-  const msg = e.data;
-  if (!msg || typeof msg !== 'object') return;
+  if (!e.data || typeof e.data !== 'object') return;
+  // Lọc bớt các log rác của trình duyệt
+  if (e.data.source && typeof e.data.source === 'string' && e.data.source.includes('react')) return;
 
-  if (msg.type === 'configuration') {
-    eraConfig = msg.data;
+  const msgType = e.data.type || e.data.action || 'KhongRo';
+  
+  // IN RA BẤT CỨ TIN NHẮN NÀO NHẬN ĐƯỢC
+  if (msgType !== 'values' && msgType !== 'KhongRo') {
+    log('ok', 'E-Ra phản hồi: ' + msgType);
+  }
+
+  // Nếu là cấu hình
+  if (msgType === 'configuration' || e.data.configuration) {
+    eraConfig = e.data.data || e.data.configuration || e.data;
     document.getElementById('dot').className = 'dot online pulse';
-    log('ok', 'Đã nhận cấu hình E-Ra thành công!');
-    console.log('--- CẤU HÌNH E-RA ---', eraConfig);
+    log('success', 'Đã lấy được mảng cấu hình!');
   } 
-  else if (msg.type === 'values') {
-    const values = msg.data;
-    
-    // Xử lý thông minh: Quét cả 2 định dạng phổ biến của nền tảng E-Ra
+  // Nếu là dữ liệu chạy
+  else if (msgType === 'values' || e.data.values) {
     const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
                      (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
+    if (!rConfigs) return;
 
-    if (!rConfigs || rConfigs.length === 0) {
-       log('err', 'Lỗi: Chưa nhận được mảng Realtime Configs từ E-Ra');
-       return;
-    }
-
+    const values = e.data.data || e.data.values || e.data;
     rConfigs.forEach((cfg, index) => {
       const valObj = values[cfg.id];
       if (valObj !== undefined) {
-        // Tự động phân tách nếu dữ liệu là object hoặc số trực tiếp
         const val = (typeof valObj === 'object' && valObj !== null) ? valObj.value : valObj;
-        
         if (index === 0) currentData.dist = val;
         if (index === 1) currentData.sCode = val;
         if (index === 2) currentData.motorL = val;
@@ -244,26 +243,22 @@ window.addEventListener('message', (e) => {
   }
 });
 
+// GỬI LỆNH ĐIỀU KHIỂN
 function sendAction(index, val) {
   const acts = (eraConfig && eraConfig.actions) ? eraConfig.actions : null;
   if (acts && acts[index]) {
-    window.parent.postMessage({
-      type: 'trigger_action',
-      data: { action: acts[index].id, value: val }
-    }, '*');
+    window.parent.postMessage({ type: 'trigger_action', data: { action: acts[index].id, value: val } }, '*');
   } else {
-    log('err', 'Lỗi: Chưa tìm thấy Action vị trí ' + index + ' trên bảng cài đặt');
+    log('err', 'Lỗi gửi lệnh: Mảng Action chưa được nạp.');
   }
 }
-
 function sendPID() {
   sendAction(0, parseFloat(document.getElementById('rKp').value));
   sendAction(1, parseFloat(document.getElementById('rKi').value));
   sendAction(2, parseFloat(document.getElementById('rKd').value));
   sendAction(3, parseFloat(document.getElementById('rSpd').value));
-  log('ok', 'Đã gửi bộ thông số PID xuống ESP32');
+  log('warn', 'Đang nạp Kp, Ki, Kd, Spd xuống ESP32...');
 }
-
 function sendStop() {
   const btn = document.getElementById('btnStop');
   const isStop = btn.textContent.includes('STOP');
@@ -273,8 +268,19 @@ function sendStop() {
   log('warn', isStop ? 'Gửi lệnh DỪNG XE' : 'Gửi lệnh CHẠY TIẾP');
 }
 
-// Báo cho E-Ra biết iFrame đã load xong
-window.parent.postMessage({ type: 'ready' }, '*');
+// BỘ GÕ CỬA LIÊN TỤC (PING)
+let pingCount = 0;
+let readyTimer = setInterval(() => {
+  if (!eraConfig) {
+    pingCount++;
+    log('warn', `Gửi tín hiệu Ready lần ${pingCount}...`);
+    window.parent.postMessage({ type: 'ready' }, '*');
+    window.parent.postMessage({ action: 'ready' }, '*'); // Bắn thêm cả lệnh action đề phòng E-Ra đổi API
+  } else {
+    clearInterval(readyTimer); // Ngừng gõ cửa khi đã nhận được cấu hình
+  }
+}, 2000);
+
 </script>
 </body>
 </html>
