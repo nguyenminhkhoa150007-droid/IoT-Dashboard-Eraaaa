@@ -81,7 +81,6 @@
     </div>
 
     <!-- PHẦN 1: TÍCH HỢP LÕI THƯ VIỆN E-RA TRỰC TIẾP -->
-    <!-- Thay vì dùng link bên ngoài bị lỗi, ta tạo class ERa xử lý ngầm y hệt thư viện gốc -->
     <script>
         class ERa {
             constructor() {
@@ -98,7 +97,7 @@
                         this.configReceived = true;
                         if (this.listeners['configuration']) this.listeners['configuration'](payload);
                     } 
-                    else if (msgType === 'values' || e.data.values) {
+                    else if (msgType === 'values' || e.data.values || e.data.data) {
                         if (this.listeners['values']) this.listeners['values'](payload);
                     }
                 });
@@ -110,7 +109,7 @@
                     } else {
                         clearInterval(this.pingInterval);
                     }
-                }, 1500);
+                }, 1000);
             }
 
             on(eventName, callback) {
@@ -120,38 +119,33 @@
     </script>
 
     <script>
-        // PHẦN 2: KHỞI TẠO VÀ BẮT SỰ KIỆN (Cú pháp giống 100% video)
+        // PHẦN 2: KHỞI TẠO VÀ BẮT SỰ KIỆN ĐỂ CẬP NHẬT REALTIME
         const era = new ERa();
-        let eraConfig = null;
 
-        // Bắt cấu hình (phút 13:20)
+        // Bắt cấu hình
         era.on('configuration', (config) => {
-            eraConfig = config;
-            console.log("Đã nhận cấu hình:", eraConfig);
+            console.log("Đã nhận cấu hình từ E-Ra:", config);
         });
 
-        // Bắt sự kiện values để cập nhật dữ liệu Realtime
+        // Bắt sự kiện values - Quét toàn bộ giá trị gửi xuống (Không phụ thuộc thứ tự mảng)
         era.on('values', (values) => {
-            const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
-                             (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
-            if (!rConfigs) return;
+            if (!values) return;
 
-            // Đọc theo vị trí thiết lập trên web E-Ra (Vị trí 0: Nhiệt độ, Vị trí 1: Độ ẩm)
-            const tempCfg = rConfigs[0];
-            const humCfg = rConfigs[1];
-
-            // Cập nhật Nhiệt độ
-            if (tempCfg && values[tempCfg.id] !== undefined) {
-                const rawVal = values[tempCfg.id];
-                const tempVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
-                document.getElementById('tempValue').innerText = parseFloat(tempVal).toFixed(1);
-            }
+            let extractedValues = [];
             
-            // Cập nhật Độ ẩm
-            if (humCfg && values[humCfg.id] !== undefined) {
-                const rawVal = values[humCfg.id];
-                const humVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
-                document.getElementById('humValue').innerText = parseFloat(humVal).toFixed(1);
+            // Trích xuất toàn bộ các số được gửi xuống từ Realtime Configs
+            for (let key in values) {
+                let rawVal = values[key];
+                let actualVal = (typeof rawVal === 'object' && rawVal !== null) ? rawVal.value : rawVal;
+                extractedValues.push(actualVal);
+            }
+
+            // Gán dữ liệu lên giao diện
+            if (extractedValues.length > 0 && extractedValues[0] !== undefined) {
+                document.getElementById('tempValue').innerText = parseFloat(extractedValues[0]).toFixed(1);
+            }
+            if (extractedValues.length > 1 && extractedValues[1] !== undefined) {
+                document.getElementById('humValue').innerText = parseFloat(extractedValues[1]).toFixed(1);
             }
         });
     </script>
