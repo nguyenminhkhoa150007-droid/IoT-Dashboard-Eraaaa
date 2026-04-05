@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Robot Line Follower — E-Ra Realtime</title>
 <style>
-  /* Giao diện giữ nguyên, chỉ bỏ khung nhập API Token */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg0: #0d0f14; --bg1: #161920; --bg2: #1e222b; --bg3: #252a36; --line: #2a2f3e;
@@ -141,7 +140,7 @@
         <button class="btn danger" id="btnStop" style="flex:1;" onclick="sendStop()">⬛ STOP</button>
       </div>
 
-      <div class="card-title" style="margin-top:14px;">Log</div>
+      <div class="card-title" style="margin-top:14px;">Log Trạng Thái (Bắt lỗi)</div>
       <div class="log-box" id="logBox"></div>
     </div>
   </div>
@@ -197,7 +196,7 @@ function log(type, msg) {
   box.insertBefore(p, box.firstChild); while (box.children.length > 20) box.removeChild(box.lastChild);
 }
 
-// ==================== LÕI GIAO TIẾP E-RA IFRAME ====================
+// ==================== LÕI GIAO TIẾP E-RA IFRAME (UPDATE) ====================
 let eraConfig = null;
 let currentData = { dist:null, sCode:null, motorL:null, motorR:null, err:null, kp:null, ki:null, kd:null, speed:null, rssi:null };
 
@@ -208,16 +207,27 @@ window.addEventListener('message', (e) => {
   if (msg.type === 'configuration') {
     eraConfig = msg.data;
     document.getElementById('dot').className = 'dot online pulse';
-    log('ok', 'Đã kết nối iFrame E-Ra thành công!');
+    log('ok', 'Đã nhận cấu hình E-Ra thành công!');
+    console.log('--- CẤU HÌNH E-RA ---', eraConfig);
   } 
   else if (msg.type === 'values') {
-    if (!eraConfig || !eraConfig.realtime_configs) return;
     const values = msg.data;
     
-    // Đọc dữ liệu dựa trên VỊ TRÍ cấu hình trên web E-Ra
-    eraConfig.realtime_configs.forEach((cfg, index) => {
-      if (values[cfg.id] !== undefined) {
-        const val = values[cfg.id].value;
+    // Xử lý thông minh: Quét cả 2 định dạng phổ biến của nền tảng E-Ra
+    const rConfigs = (eraConfig && eraConfig.realtime_configs) ? eraConfig.realtime_configs : 
+                     (eraConfig && eraConfig.realtimeConfigs)  ? eraConfig.realtimeConfigs : null;
+
+    if (!rConfigs || rConfigs.length === 0) {
+       log('err', 'Lỗi: Chưa nhận được mảng Realtime Configs từ E-Ra');
+       return;
+    }
+
+    rConfigs.forEach((cfg, index) => {
+      const valObj = values[cfg.id];
+      if (valObj !== undefined) {
+        // Tự động phân tách nếu dữ liệu là object hoặc số trực tiếp
+        const val = (typeof valObj === 'object' && valObj !== null) ? valObj.value : valObj;
+        
         if (index === 0) currentData.dist = val;
         if (index === 1) currentData.sCode = val;
         if (index === 2) currentData.motorL = val;
@@ -235,13 +245,14 @@ window.addEventListener('message', (e) => {
 });
 
 function sendAction(index, val) {
-  if (eraConfig && eraConfig.actions && eraConfig.actions[index]) {
+  const acts = (eraConfig && eraConfig.actions) ? eraConfig.actions : null;
+  if (acts && acts[index]) {
     window.parent.postMessage({
       type: 'trigger_action',
-      data: { action: eraConfig.actions[index].id, value: val }
+      data: { action: acts[index].id, value: val }
     }, '*');
   } else {
-    log('err', 'Lỗi: Chưa cấu hình Action vị trí ' + index + ' trên E-Ra');
+    log('err', 'Lỗi: Chưa tìm thấy Action vị trí ' + index + ' trên bảng cài đặt');
   }
 }
 
@@ -250,7 +261,7 @@ function sendPID() {
   sendAction(1, parseFloat(document.getElementById('rKi').value));
   sendAction(2, parseFloat(document.getElementById('rKd').value));
   sendAction(3, parseFloat(document.getElementById('rSpd').value));
-  log('ok', 'Đã gửi lệnh PID xuống ESP32');
+  log('ok', 'Đã gửi bộ thông số PID xuống ESP32');
 }
 
 function sendStop() {
@@ -259,7 +270,7 @@ function sendStop() {
   btn.textContent = isStop ? '▶ RESUME' : '⬛ STOP';
   btn.className = 'btn ' + (isStop ? 'success' : 'danger');
   sendAction(4, isStop ? 1 : 0);
-  log('warn', isStop ? 'Gửi lệnh DỪNG' : 'Gửi lệnh TIẾP TỤC');
+  log('warn', isStop ? 'Gửi lệnh DỪNG XE' : 'Gửi lệnh CHẠY TIẾP');
 }
 
 // Báo cho E-Ra biết iFrame đã load xong
